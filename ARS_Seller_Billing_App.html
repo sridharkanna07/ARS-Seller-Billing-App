@@ -11,6 +11,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>A.R.S Crackers — Seller Billing</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%237a1414'/%3E%3Ctext x='50' y='66' font-size='52' text-anchor='middle' fill='%23ffd34d' font-family='Arial' font-weight='bold'%3EA%3C/text%3E%3C/svg%3E">
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <style>
   :root{
     --maroon:#7a1414; --maroon-dark:#4a0c0c; --ember:#c9651a; --gold:#ffd34d;
@@ -760,9 +762,96 @@
 const DATA = JSON.parse(document.getElementById('catalog-data').textContent);
 const SHOP = DATA.shop;
 
+/* ============== CLOUD SYNC (Firebase Firestore) ==============
+   Makes data save automatically to the cloud (not just this one browser),
+   so the same shop data shows up on every phone/device that opens this
+   website. Required one-time setup:
+     1. Go to https://console.firebase.google.com → Add project (free).
+     2. Build → Firestore Database → Create database (any region, "test
+        mode" is fine to start).
+     3. Project settings (gear icon) → General → "Your apps" → Add app → Web.
+        Copy the firebaseConfig object it gives you and paste it below,
+        replacing the placeholder values.
+     4. In Firestore → Rules, use:
+          rules_version = '2';
+          service cloud.firestore {
+            match /databases/{database}/documents {
+              match /ars_billing/{docId} { allow read, write: if true; }
+            }
+          }
+        (This keeps the open rule scoped to only this app's one document.)
+   Until real keys are filled in below, the app keeps working exactly as
+   before, saving only to this browser's localStorage.                 */
+const firebaseConfig = {
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  storageBucket: "YOUR_PROJECT_ID.appspot.com",
+  messagingSenderId: "YOUR_SENDER_ID",
+  appId: "YOUR_APP_ID"
+};
+const CLOUD_SYNC_ENABLED = !!(firebaseConfig.apiKey && firebaseConfig.apiKey.indexOf('YOUR_') !== 0);
+const CLOUD_SYNC_KEYS = ['ars_catalog','ars_users','ars_inventory','ars_discount','ars_upi','ars_catnames','ars_sales','ars_login_history','ars_bill_counter'];
+/* A downloaded backup .html is a frozen offline snapshot (see hydrateFromBackupSeed
+   below) — it must never reconnect to the live cloud data and overwrite itself. */
+const IS_OFFLINE_BACKUP_COPY = !!document.getElementById('backup-seed-data');
+let cloudDocRef = null;
+if(CLOUD_SYNC_ENABLED && !IS_OFFLINE_BACKUP_COPY){
+  try{
+    firebase.initializeApp(firebaseConfig);
+    cloudDocRef = firebase.firestore().collection('ars_billing').doc('shared_data');
+  } catch(e){ console.error('Cloud sync init failed', e); }
+}
+const _cloudPushTimers = {};
+function queueCloudPush(key, val){
+  if(!cloudDocRef || CLOUD_SYNC_KEYS.indexOf(key) === -1) return;
+  let snapshotVal;
+  try{ snapshotVal = JSON.parse(JSON.stringify(val)); } catch(e){ return; }
+  clearTimeout(_cloudPushTimers[key]);
+  _cloudPushTimers[key] = setTimeout(() => {
+    cloudDocRef.set({ [key]: snapshotVal, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true})
+      .catch(e => console.error('Cloud save failed for', key, e));
+  }, 500);
+}
+function showCloudUpdateBanner(){
+  if(document.getElementById('cloudSyncBanner')) return;
+  const bar = document.createElement('div');
+  bar.id = 'cloudSyncBanner';
+  bar.style.cssText = 'position:fixed; left:0; right:0; bottom:0; z-index:99999; background:var(--maroon); color:#fff8e6; padding:10px 14px; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:space-between; gap:10px; box-shadow:0 -2px 10px rgba(0,0,0,0.25);';
+  bar.innerHTML = '<span>&#9729; New data synced from another device.</span><button style="background:var(--gold); color:var(--maroon-dark); border:none; border-radius:6px; padding:6px 12px; font-weight:800;" onclick="location.reload()">Refresh</button>';
+  document.body.appendChild(bar);
+}
+/* One-time pull of the latest cloud data on open, and a live listener that
+   flags (without disrupting an in-progress bill) whenever another device
+   saves newer data, so this device can pick it up with one tap. */
+(function initCloudSync(){
+  if(!cloudDocRef) return;
+  cloudDocRef.get().then(snap => {
+    if(!snap.exists) return;
+    const data = snap.data();
+    let changed = false;
+    CLOUD_SYNC_KEYS.forEach(k => {
+      if(data[k] !== undefined){
+        const newStr = JSON.stringify(data[k]);
+        if(localStorage.getItem(k) !== newStr){ localStorage.setItem(k, newStr); changed = true; }
+      }
+    });
+    if(changed && !sessionStorage.getItem('ars_cloud_hydrated')){
+      sessionStorage.setItem('ars_cloud_hydrated', '1');
+      location.reload();
+    }
+  }).catch(e => console.error('Cloud fetch failed', e));
+  cloudDocRef.onSnapshot(snap => {
+    if(!snap.exists || snap.metadata.hasPendingWrites) return;
+    const data = snap.data();
+    const differs = CLOUD_SYNC_KEYS.some(k => data[k] !== undefined && JSON.stringify(data[k]) !== localStorage.getItem(k));
+    if(differs) showCloudUpdateBanner();
+  }, e => console.error('Cloud sync listener error', e));
+})();
+
 /* ---------------- storage helpers ---------------- */
 function loadJSON(key, fallback){ try { const v = JSON.parse(localStorage.getItem(key)); return (v===null||v===undefined) ? fallback : v; } catch(e){ return fallback; } }
-function saveJSON(key, val){ try { localStorage.setItem(key, JSON.stringify(val)); } catch(e){} }
+function saveJSON(key, val){ try { localStorage.setItem(key, JSON.stringify(val)); } catch(e){} queueCloudPush(key, val); }
 
 /* If this file IS a downloaded backup (it carries an embedded #backup-seed-data block),
    pre-fill localStorage from it the very first time it's opened — before anything else
@@ -2776,7 +2865,15 @@ function renderAdmin(){
     updateUpiPreview();
 
   } else if(adminTab === 'backup'){
-    main.innerHTML = `<div class="backup-card" style="background:#e2f6e8; border-color:#1e7a3c;">
+    main.innerHTML = `<div class="backup-card" style="${CLOUD_SYNC_ENABLED ? 'background:#e2f6e8; border-color:#1e7a3c;' : 'background:#ffe2e2; border-color:#ffb3a8;'}">
+        <div class="section-title" style="margin-top:0; color:${CLOUD_SYNC_ENABLED ? 'var(--green)' : 'var(--danger)'};">${CLOUD_SYNC_ENABLED ? '☁️ Cloud Sync: ON' : '☁️ Cloud Sync: NOT SET UP'}</div>
+        <div class="backup-note" style="${CLOUD_SYNC_ENABLED ? 'background:#f0fff0; border-color:#1e7a3c; color:#1e7a3c;' : 'background:#fff0f0; border-color:#ffb3a8; color:var(--danger);'}">
+          ${CLOUD_SYNC_ENABLED
+            ? 'Every sale, price and setting change saves automatically to the cloud and appears on every device that opens this website.'
+            : 'Data is only saved on this one device/browser right now. To auto-save across every phone and device, add a free Firebase config — see the comment at the top of the &lt;script&gt; section in this file (search "CLOUD SYNC").'}
+        </div>
+      </div>
+      <div class="backup-card" style="background:#e2f6e8; border-color:#1e7a3c;">
         <div class="section-title" style="margin-top:0; color:var(--green);">📊 PDF REPORTS (Bank / Loan Format)</div>
         <div class="backup-note" style="background:#f0fff0; border-color:#1e7a3c; color:#1e7a3c; margin-bottom:12px;">
           Professional A4 PDF reports suitable for bank loan applications, GST filing, and financial documentation.
