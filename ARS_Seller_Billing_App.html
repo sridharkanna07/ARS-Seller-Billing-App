@@ -64,6 +64,13 @@
     font-size:10.5px; font-weight:700; padding:6px 10px; border-radius:8px; white-space:nowrap;
     position:relative;
   }
+  #fullscreenBtn{
+    display:none; width:34px; height:34px; padding:0;
+    align-items:center; justify-content:center; border-radius:8px;
+  }
+  @media(max-width:600px){
+    #fullscreenBtn{display:flex !important;}
+  }
   .icon-btn-circle{
     width:34px !important; height:34px !important; padding:0 !important; display:flex !important;
     align-items:center; justify-content:center; border-radius:50% !important;
@@ -563,6 +570,7 @@
           <div class="shop-name-big" id="shopNameBig"></div>
         </div>
         <div class="hdr-actions">
+          <button id="fullscreenBtn" class="hidden" onclick="toggleFullscreen()" title="Fullscreen / முழு திரை"><svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 14H5v5h5v-2H7v-3zm-2-4h2V7h3V5H5v5zm12 7h-3v2h5v-5h-2v3zM14 5v2h3v3h2V5h-5z"/></svg></button>
           <button id="clearShareBtn" class="clear-stack-btn" onclick="handleClearShareClick(this)" title="Clear cart">
             <span id="clearShareIcon"><svg width="19" height="19" viewBox="0 0 24 24" fill="currentColor"><path d="M6,19c0,1.1,0.9,2,2,2h8c1.1,0,2-0.9,2-2V7H6V19z M19,4h-3.5l-1-1h-5l-1,1H5v2h14V4z"/></svg></span>
             <span id="clearShareLabel">Clear</span>
@@ -938,6 +946,26 @@ function showConfirm(message){
 function closeConfirm(result){
   document.getElementById('confirmOverlay').classList.remove('show');
   if(_confirmResolve){ const r = _confirmResolve; _confirmResolve = null; r(result); }
+}
+
+/* Fullscreen Toggle for Mobile */
+function toggleFullscreen(){
+  const elem = document.documentElement;
+  const isFullscreen = document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement;
+  
+  if(isFullscreen){
+    /* Exit fullscreen */
+    if(document.exitFullscreen) document.exitFullscreen();
+    else if(document.webkitExitFullscreen) document.webkitExitFullscreen();
+    else if(document.mozCancelFullScreen) document.mozCancelFullScreen();
+    else if(document.msExitFullscreen) document.msExitFullscreen();
+  } else {
+    /* Enter fullscreen */
+    if(elem.requestFullscreen) elem.requestFullscreen();
+    else if(elem.webkitRequestFullscreen) elem.webkitRequestFullscreen();
+    else if(elem.mozRequestFullScreen) elem.mozRequestFullScreen();
+    else if(elem.msRequestFullscreen) elem.msRequestFullscreen();
+  }
 }
 
 async function logout(){
@@ -1972,139 +2000,80 @@ async function generatePriceListPDF(){
 
 function buildPriceListTableHTML(){
   const items = [
-    {ta:'குருவி', en:'Kuruvi Bomb', price:'₹12'},
-    {ta:'லட்சுமி', en:'Lakshmi Bomb', price:'₹25'},
-    {ta:'தோல் லட்சுமி', en:'Gold Lakshmi Bomb', price:'₹40'},
-    {ta:'தோல் விநாயகர்', en:'Gold Vinayagar Bomb', price:'₹50'},
-    {ta:'ஹனுமான்', en:'Hanuman Bomb', price:'₹60'},
-    {ta:'கம்சன்', en:'Kamsan Bomb', price:'₹80'},
-    {ta:'பெரிய புச்சட்டி', en:'Flower Pot Big', price:'₹80'},
-    {ta:'ஸ்பெஷல் புச்சட்டி', en:'Flower Pot Special', price:'₹120'},
-    {ta:'அசோகா புச்சட்டி', en:'Flower Pot Ashoka', price:'₹180'},
-    {ta:'கலர் புச்சட்டி', en:'Flower Pot Colour', price:'₹300'},
-    {ta:'பெரிய சக்கரம்', en:'Chakkar Big', price:'₹60'},
-    {ta:'ஸ்பெஷல் சக்கரம்', en:'Chakkar Special', price:'₹120'},
-    {ta:'டிலக்ஸ் சக்கரம்', en:'Chakkar Deluxe', price:'₹180'},
-    {ta:'கம்பி சக்கரம்', en:'Wire Chakkar', price:'₹250'},
-    {ta:'விசிலிங் ராக்கெட்', en:'Whistling Rocket', price:'₹250'},
-    {ta:'பென்சில் ஆயுதம்', en:'Pencil Cracker', price:'₹45'},
-    {ta:'சாட்டை ஆயுதம்', en:'Whip Cracker', price:'₹45'},
-    {ta:'பெரிய சாட்டை', en:'Whip Cracker 4"', price:'₹120'},
-    {ta:'சிவப்பு பிரிஜிலி', en:'Red Brijili', price:'₹45'},
-    {ta:'வெள்ளி பிரிஜிலி', en:'Striped Brijili', price:'₹45'},
-    {ta:'28 சோரசா', en:'Sorsa Garland 28', price:'₹20'},
-    {ta:'28 ஜெயிண்ட்', en:'Joint Garland 28', price:'₹30'},
-    {ta:'56 ஜெயிண்ட்', en:'Joint Garland 56', price:'₹60'},
-    {ta:'50 மாளர்கள்', en:'Malar Garland 50', price:'₹135'},
-    {ta:'100 மேகா மாளர்', en:'Mega Malar 100', price:'₹270'},
-    {ta:'100 வாலா', en:'Vala 100', price:'₹60'},
-    {ta:'1000 வாலா', en:'Vala 1000', price:'₹300'},
-    {ta:'2000 வாலா', en:'Vala 2000', price:'₹700'},
-    {ta:'5000 வாலா', en:'Vala 5000', price:'₹1200'},
-    {ta:'10000 வாலா', en:'Vala 10000', price:'₹2400'},
-    {ta:'அக்னி பாம்', en:'Agni Bomb', price:'₹250'},
-    {ta:'சிட்டு புட்டு', en:'Sittu Buttu', price:'₹50'},
-    {ta:'சிரன் & மினி', en:'Siren Mini Siren', price:'₹225'},
-    {ta:'டான்சிங் பட்டர்ஃபிளை', en:'Dancing Butterfly', price:'₹150'},
-    {ta:'பம்பரம்', en:'Pambaram Spin', price:'₹180'},
-    {ta:'த்ரில் கட்டர்', en:'Thrill Cutter', price:'₹150'},
-    {ta:'பெண்டா 5-இன்-1', en:'Penta 5-in-1', price:'₹240'},
-    {ta:'2" பைப்', en:'Pipe 2"', price:'₹150'},
-    {ta:'2" பைப் 3pc', en:'Pipe 2" 3pc', price:'₹400'},
-    {ta:'3½" பைப்', en:'Pipe 3½"', price:'₹330'},
-    {ta:'4½" பைப்', en:'Pipe 4½"', price:'₹420'},
-    {ta:'7" ஷாட்', en:'Shot 7"', price:'₹120'},
-    {ta:'3" தோல் பாம்', en:'Gold Bomb 3"', price:'₹35'},
-    {ta:'வெள்ளி பாம்', en:'Silver Bomb', price:'₹45'},
-    {ta:'வைரம் பாம்', en:'Diamond Bomb', price:'₹55'},
-    {ta:'ரூபி பாம்', en:'Ruby Bomb', price:'₹65'},
-    {ta:'பச்சை பாம்', en:'Emerald Bomb', price:'₹75'},
-    {ta:'நீல் பாம்', en:'Sapphire Bomb', price:'₹85'},
-    {ta:'முத்து பாம்', en:'Pearl Bomb', price:'₹95'},
-    {ta:'கிரிஸ்டல் பாம்', en:'Crystal Bomb', price:'₹105'},
-    {ta:'சூப்பர் பாம்', en:'Super Bomb', price:'₹115'},
-    {ta:'மேஜிக் பாம்', en:'Magic Bomb', price:'₹125'},
-    {ta:'பவர் பாம்', en:'Power Bomb', price:'₹135'},
-    {ta:'அல்ட்ரா பாம்', en:'Ultra Bomb', price:'₹145'},
-    {ta:'ஃபிளாஷ் பாம்', en:'Flash Bomb', price:'₹155'},
-    {ta:'தண்டர் பாம்', en:'Thunder Bomb', price:'₹165'},
-    {ta:'ஸ்பார்க் பாம்', en:'Spark Bomb', price:'₹175'},
-    {ta:'ஃபயர் பாம்', en:'Fire Bomb', price:'₹185'},
-    {ta:'ஸ்டார் பாம்', en:'Star Bomb', price:'₹195'},
-    {ta:'கலாக்ஸி பாம்', en:'Galaxy Bomb', price:'₹205'},
-    {ta:'காஸ்மிக் பாம்', en:'Cosmic Bomb', price:'₹215'},
-    {ta:'நோவா பாம்', en:'Nova Bomb', price:'₹225'},
-    {ta:'சூப்பர்நோவா பாம்', en:'Supernova Bomb', price:'₹235'},
-    {ta:'பிளாஸ்மா பாம்', en:'Plasma Bomb', price:'₹245'},
-    {ta:'எனர்ஜி பாம்', en:'Energy Bomb', price:'₹255'},
-    {ta:'பல்ஸ் பாம்', en:'Pulse Bomb', price:'₹265'},
-    {ta:'வேவ் பாம்', en:'Wave Bomb', price:'₹275'},
-    {ta:'சர்ஜ் பாம்', en:'Surge Bomb', price:'₹285'},
-    {ta:'பர்ஸ்ட் பாம்', en:'Burst Bomb', price:'₹295'},
-    {ta:'ப்ளாஸ்ட் பாம்', en:'Blast Bomb', price:'₹305'},
-    {ta:'பூம் பாம்', en:'Boom Bomb', price:'₹315'},
-    {ta:'பாங் பாம்', en:'Bang Bomb', price:'₹325'},
-    {ta:'பாப் பாம்', en:'Pop Bomb', price:'₹335'},
-    {ta:'கிராக் பாம்', en:'Crack Bomb', price:'₹345'},
-    {ta:'ஸ்னாப் பாம்', en:'Snap Bomb', price:'₹355'},
-    {ta:'கிளிக் பாம்', en:'Click Bomb', price:'₹365'},
-    {ta:'பிங் பாம்', en:'Ping Bomb', price:'₹375'},
-    {ta:'பாங் பாம்', en:'Pong Bomb', price:'₹385'},
-    {ta:'சிங் பாம்', en:'Zing Bomb', price:'₹395'},
-    {ta:'சாப் பாம்', en:'Zap Bomb', price:'₹405'},
-    {ta:'விஸ் பாம்', en:'Whiz Bomb', price:'₹415'},
-    {ta:'பஸ் பாம்', en:'Buzz Bomb', price:'₹425'},
-    {ta:'ஹிஸ் பாம்', en:'Hiss Bomb', price:'₹435'},
-    {ta:'ஃபிஸ் பாம்', en:'Fizz Bomb', price:'₹445'},
-    {ta:'சிஸில் பாம்', en:'Sizzle Bomb', price:'₹455'},
-    {ta:'பாப் ஃபிளவர்', en:'Pop Flower', price:'₹465'},
-    {ta:'ரெயின்போ ஃபிளவர்', en:'Rainbow Flower', price:'₹475'},
-    {ta:'கலர் ஸ்ப்ரே', en:'Color Spray', price:'₹485'},
-    {ta:'தோல் ஸ்ப்ரே', en:'Gold Spray', price:'₹495'},
-    {ta:'வெள்ளி ஸ்ப்ரே', en:'Silver Spray', price:'₹505'},
+    {s:1, cat:'Sound Bombs', name:'2½" Kuruvi Bomb', price:'₹12'},
+    {s:2, cat:'Sound Bombs', name:'4" Lakshmi Bomb', price:'₹25'},
+    {s:3, cat:'Sound Bombs', name:'4" Gold Lakshmi Bomb', price:'₹40'},
+    {s:4, cat:'Sound Bombs', name:'4" Gold Vinayagar Bomb', price:'₹50'},
+    {s:5, cat:'Sound Bombs', name:'5" Hanuman Bomb', price:'₹60'},
+    {s:6, cat:'Sound Bombs', name:'5" Kamsan Bomb', price:'₹80'},
+    {s:7, cat:'Flower Pots', name:'Flower Pot — Big', price:'₹80'},
+    {s:8, cat:'Flower Pots', name:'Flower Pot — Special', price:'₹120'},
+    {s:9, cat:'Flower Pots', name:'Flower Pot — Ashoka', price:'₹180'},
+    {s:10, cat:'Flower Pots', name:'Flower Pot — Colour Coated', price:'₹300'},
+    {s:11, cat:'Ground Chakkars', name:'Chakkar — Big', price:'₹60'},
+    {s:12, cat:'Ground Chakkars', name:'Chakkar — Special', price:'₹120'},
+    {s:13, cat:'Ground Chakkars', name:'Chakkar — Deluxe', price:'₹180'},
+    {s:14, cat:'Ground Chakkars', name:'Wire Chakkar', price:'₹250'},
+    {s:15, cat:'Whistling Rocket', name:'Whistling Rocket', price:'₹250'},
+    {s:16, cat:'Whip/Pencil', name:'7" Pencil Cracker', price:'₹45'},
+    {s:17, cat:'Whip/Pencil', name:'1½" Whip Cracker', price:'₹45'},
+    {s:18, cat:'Whip/Pencil', name:'4" Whip Cracker', price:'₹120'},
+    {s:19, cat:'Brijili Crackers', name:'Red Brijili', price:'₹45'},
+    {s:20, cat:'Brijili Crackers', name:'Striped Brijili', price:'₹45'},
+    {s:21, cat:'Garland (Saram)', name:'28-shot Sorsa Garland', price:'₹20'},
+    {s:22, cat:'Garland (Saram)', name:'28-shot Joint Garland', price:'₹30'},
+    {s:23, cat:'Garland (Saram)', name:'56-shot Joint Garland', price:'₹60'},
+    {s:24, cat:'Garland (Saram)', name:'50 Malar Garland', price:'₹135'},
+    {s:25, cat:'Garland (Saram)', name:'100 Mega Malar Garland', price:'₹270'},
+    {s:26, cat:'Vala Crackers', name:'100 Vala', price:'₹60'},
+    {s:27, cat:'Vala Crackers', name:'1000 Vala', price:'₹300'},
+    {s:28, cat:'Vala Crackers', name:'2000 Vala', price:'₹700'},
+    {s:29, cat:'Vala Crackers', name:'5000 Vala', price:'₹1200'},
+    {s:30, cat:'Vala Crackers', name:'10000 Vala', price:'₹2400'},
+    {s:31, cat:'Agni Bomb', name:'Agni Bomb', price:'₹250'},
+    {s:32, cat:'Kids Special', name:'Sittu Buttu', price:'₹50'},
+    {s:33, cat:'Kids Special', name:'Siren & Mini Siren', price:'₹225'},
+    {s:34, cat:'Kids Special', name:'Dancing Butterfly', price:'₹150'},
+    {s:35, cat:'Kids Special', name:'Pambaram (Spin Top)', price:'₹180'},
+    {s:36, cat:'Kids Special', name:'Thrill Cutter', price:'₹150'},
+    {s:37, cat:'Alutu/Pipe', name:'Penta 5-in-1', price:'₹240'},
+    {s:38, cat:'Alutu/Pipe', name:'2" Pipe', price:'₹150'},
+    {s:39, cat:'Alutu/Pipe', name:'2" Pipe (3 pc)', price:'₹400'},
+    {s:40, cat:'Alutu/Pipe', name:'3½" Pipe', price:'₹330'},
   ];
 
-  const itemsPerPage = 45;
-  const pages = [];
-  for(let i = 0; i < items.length; i += itemsPerPage) {
-    pages.push(items.slice(i, i + itemsPerPage));
-  }
+  const mid = 20;
+  const col1 = items.slice(0, mid);
+  const col2 = items.slice(mid);
 
-  return pages.map((pageItems, pageIdx) => `
-    <div style="width:210mm; height:297mm; padding:5mm; background:#fff; font-family:Arial; display:flex; flex-direction:column; page-break-after:always;">
-      ${pageIdx === 0 ? `
-        <div style="background:#7a1414; color:white; padding:3mm; text-align:center; margin-bottom:3mm; border-radius:1px;">
-          <div style="font-size:13px; font-weight:bold;">A.R.S CRACKERS SHOP</div>
-          <div style="font-size:7px;">8760209888 | Thanneerpandhal</div>
-        </div>
-      ` : `<div style="height:3mm; margin-bottom:3mm;"></div>`}
-      
-      <div style="display:grid; grid-template-columns:1fr 1fr; gap:3mm; flex:1;">
-        <div style="border:0.5px solid #ddd; padding:2mm; overflow-y:auto;">
-          ${pageItems.slice(0, Math.ceil(pageItems.length/2)).map(item => `
-            <div style="padding:2mm 1.5mm; border-bottom:0.5px solid #eee;">
-              <div style="font-weight:bold; font-size:9px; color:#7a1414; line-height:1.1;">${item.ta}</div>
-              <div style="font-size:6px; color:#666; line-height:1;">${item.en}</div>
-              <div style="text-align:right; font-weight:bold; color:#c9651a; font-size:8px; margin-top:0.5mm;">${item.price}</div>
-            </div>
-          `).join('')}
-        </div>
-        <div style="border:0.5px solid #ddd; padding:2mm; overflow-y:auto;">
-          ${pageItems.slice(Math.ceil(pageItems.length/2)).map(item => `
-            <div style="padding:2mm 1.5mm; border-bottom:0.5px solid #eee;">
-              <div style="font-weight:bold; font-size:9px; color:#7a1414; line-height:1.1;">${item.ta}</div>
-              <div style="font-size:6px; color:#666; line-height:1;">${item.en}</div>
-              <div style="text-align:right; font-weight:bold; color:#c9651a; font-size:8px; margin-top:0.5mm;">${item.price}</div>
-            </div>
-          `).join('')}
-        </div>
-      </div>
-
-      <div style="text-align:center; font-size:6px; margin-top:2mm; color:#999; border-top:0.5px solid #ddd; padding-top:1mm;">
-        Page ${pageIdx+1} of ${pages.length}
-      </div>
+  const renderCol = (items) => items.map(item => `
+    <div style="display:grid; grid-template-columns: 20px 1fr 40px; gap:2px; padding:2px 3px; border-bottom:0.5px solid #ddd; font-size:7px; line-height:1.2;">
+      <div style="font-weight:bold;">${item.s}</div>
+      <div><div style="font-weight:bold;">${item.name}</div><div style="font-size:6px; color:#666;">${item.cat}</div></div>
+      <div style="text-align:right; font-weight:bold; color:#c9651a;">${item.price}</div>
     </div>
   `).join('');
+
+  return `
+    <div style="width:210mm; height:297mm; padding:8mm; background:#fff; font-family:Arial; display:flex; flex-direction:column;">
+      <div style="background:#7a1414; color:white; padding:6mm; text-align:center; margin-bottom:6mm; border-radius:3px;">
+        <div style="font-size:16px; font-weight:bold;">A.R.S CRACKERS SHOP</div>
+        <div style="font-size:9px; margin:2mm 0;">Thanneerpandhal, Puthur | Ph: 8760209888</div>
+        <div style="font-size:10px; font-weight:bold; margin-top:2mm;">OFFICIAL PRICE LIST</div>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:6mm; flex:1;">
+        <div style="border:1px solid #ddd; padding:3mm; overflow:hidden;">
+          ${renderCol(col1)}
+        </div>
+        <div style="border:1px solid #ddd; padding:3mm; overflow:hidden;">
+          ${renderCol(col2)}
+        </div>
+      </div>
+      <div style="text-align:center; font-size:7px; margin-top:4mm; color:#666; border-top:1px solid #ddd; padding-top:2mm;">
+        ✓ All prices inclusive | Document Date: ${new Date().toLocaleDateString('en-GB')}
+      </div>
+    </div>
+  `;
 }
 
 async function sharePriceListPDF(triggerEl){
