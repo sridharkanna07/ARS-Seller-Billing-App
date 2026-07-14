@@ -1,0 +1,253 @@
+/**
+ * Firestore Security Rules
+ * A.R.S Crackers Seller Billing App
+ *
+ * HOW TO DEPLOY:
+ * 1. Install Firebase CLI: npm install -g firebase-tools
+ * 2. Login: firebase login
+ * 3. Initialize: firebase init firestore (in your project directory)
+ * 4. Deploy: firebase deploy --only firestore:rules
+ */
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================
+    // HELPER FUNCTIONS
+    // ============================================
+
+    // Check if user is authenticated
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Check if user is the resource owner
+    function isOwner(userId) {
+      return request.auth.uid == userId;
+    }
+
+    // Check if request is from admin
+    function isAdmin() {
+      return request.auth.token.admin == true;
+    }
+
+    // ============================================
+    // USERS COLLECTION
+    // ============================================
+    match /users/{userId} {
+      // User can read their own profile
+      allow read: if isOwner(userId);
+
+      // User can update their own profile
+      allow update: if isOwner(userId) &&
+                       !('role' in request.resource.data);
+      // Can't change role themselves
+
+      // Only admin can create users
+      allow create: if isAdmin();
+
+      // Only admin can delete users
+      allow delete: if isAdmin();
+    }
+
+    // ============================================
+    // SELLERS COLLECTION
+    // ============================================
+    match /sellers/{sellerId} {
+      // Seller can read their own data
+      allow read: if isOwner(sellerId) || isAdmin();
+
+      // Seller can update their own data
+      allow update: if isOwner(sellerId) &&
+                       !('totalInvoices' in request.resource.data);
+      // System fields updated only by server
+
+      // Only admin can create seller profiles
+      allow create: if isAdmin();
+
+      // Only admin can delete
+      allow delete: if isAdmin();
+
+      // Sub-collection: seller's analytics
+      match /dailyAnalytics/{analyticsId} {
+        allow read: if isOwner(sellerId) || isAdmin();
+        allow write: if isOwner(sellerId) || isAdmin();
+      }
+
+      // Sub-collection: seller's settings
+      match /settings/{settingId} {
+        allow read: if isOwner(sellerId);
+        allow write: if isOwner(sellerId);
+      }
+    }
+
+    // ============================================
+    // INVOICES COLLECTION
+    // ============================================
+    match /invoices/{invoiceId} {
+      // User can read invoices they created
+      allow read: if isOwner(resource.data.sellerId) || isAdmin();
+
+      // Seller can create their own invoices
+      allow create: if isSignedIn() &&
+                       request.resource.data.sellerId == request.auth.uid &&
+                       request.resource.data.createdAt == request.time &&
+                       request.resource.data.items is list &&
+                       request.resource.data.items.size() > 0;
+
+      // Seller can update their own invoices (only status & notes)
+      allow update: if isOwner(resource.data.sellerId) &&
+                       request.resource.data.sellerId == resource.data.sellerId &&
+                       request.resource.data.createdAt == resource.data.createdAt &&
+                       !('items' in request.resource.data);
+      // Can't modify items after creation
+
+      // Only seller who created or admin can delete
+      allow delete: if isOwner(resource.data.sellerId) || isAdmin();
+    }
+
+    // ============================================
+    // PRODUCTS COLLECTION
+    // ============================================
+    match /products/{productId} {
+      // Anyone can read products (public shop inventory)
+      allow read: if isSignedIn();
+
+      // Only admin and shop owner can create products
+      allow create: if isAdmin() ||
+                       (isSignedIn() && request.auth.uid == request.resource.data.shopOwnerId);
+
+      // Only shop owner can update their products
+      allow update: if isSignedIn() &&
+                       request.auth.uid == resource.data.shopOwnerId;
+
+      // Only admin or shop owner can delete
+      allow delete: if isAdmin() ||
+                       (isSignedIn() && request.auth.uid == resource.data.shopOwnerId);
+    }
+
+    // ============================================
+    // TRANSACTIONS COLLECTION (Payment Records)
+    // ============================================
+    match /transactions/{transactionId} {
+      // User can read transactions they're involved in
+      allow read: if isOwner(resource.data.sellerId) || isAdmin();
+
+      // Only system can create transactions (via cloud functions)
+      allow create: if false; // Use cloud functions
+
+      // Only admin can update/delete
+      allow update, delete: if isAdmin();
+    }
+
+    // ============================================
+    // ANALYTICS COLLECTION
+    // ============================================
+    match /analytics/{analyticsId} {
+      // User can read their own analytics
+      allow read: if isOwner(resource.data.sellerId) || isAdmin();
+
+      // System writes analytics (via cloud functions)
+      allow write: if false; // Use cloud functions
+    }
+
+    // ============================================
+    // BACKUPS COLLECTION
+    // ============================================
+    match /backups/{backupId} {
+      // User can read their own backups
+      allow read: if isOwner(resource.data.sellerId);
+
+      // User can create backups
+      allow create: if isSignedIn() &&
+                       request.resource.data.sellerId == request.auth.uid;
+
+      // User can delete their own backups
+      allow delete: if isOwner(resource.data.sellerId);
+
+      // Can't update backups (immutable)
+      allow update: if false;
+    }
+
+    // ============================================
+    // AUDIT LOG (Read-Only)
+    // ============================================
+    match /auditLog/{logId} {
+      // Only admin can read audit logs
+      allow read: if isAdmin();
+
+      // Only system can write (via cloud functions)
+      allow write: if false;
+    }
+
+    // ============================================
+    // DEFAULT DENY
+    // ============================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
+
+/*
+
+============================================
+DEPLOYMENT INSTRUCTIONS
+============================================
+
+1. Install Firebase CLI:
+   npm install -g firebase-tools
+
+2. Login to Firebase:
+   firebase login
+
+3. Initialize your project (if not already done):
+   firebase init firestore
+
+4. Replace your firestore.rules file with this one
+
+5. Deploy rules:
+   firebase deploy --only firestore:rules
+
+6. Monitor rule usage in Firebase Console:
+   Project → Firestore → Rules
+
+============================================
+TESTING YOUR RULES
+============================================
+
+Use Firebase Emulator Suite for local testing:
+
+1. Install emulator:
+   firebase init emulator
+
+2. Start emulator:
+   firebase emulators:start
+
+3. Access Emulator UI:
+   http://localhost:4000
+
+4. In your app, connect to emulator:
+   // Add before firebase.initializeApp()
+   if (location.hostname === 'localhost') {
+     db.useEmulator('localhost', 8080);
+   }
+
+============================================
+CUSTOM CLAIMS FOR ADVANCED CONTROL
+============================================
+
+In Cloud Functions or Firebase Admin SDK:
+
+// Set admin role
+admin.auth().setCustomUserClaims(uid, { admin: true });
+
+// Set seller with shop ID
+admin.auth().setCustomUserClaims(uid, { shopId: 'shop_123' });
+
+Then use in rules:
+allow create: if request.auth.token.shopId == request.resource.data.shopId;
+
+*/
