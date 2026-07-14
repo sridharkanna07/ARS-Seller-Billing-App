@@ -11,8 +11,6 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>A.R.S Crackers — Seller Billing</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='48' fill='%237a1414'/%3E%3Ctext x='50' y='66' font-size='52' text-anchor='middle' fill='%23ffd34d' font-family='Arial' font-weight='bold'%3EA%3C/text%3E%3C/svg%3E">
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore-compat.js"></script>
 <style>
   :root{
     --maroon:#7a1414; --maroon-dark:#4a0c0c; --ember:#c9651a; --gold:#ffd34d;
@@ -762,96 +760,9 @@
 const DATA = JSON.parse(document.getElementById('catalog-data').textContent);
 const SHOP = DATA.shop;
 
-/* ============== CLOUD SYNC (Firebase Firestore) ==============
-   Makes data save automatically to the cloud (not just this one browser),
-   so the same shop data shows up on every phone/device that opens this
-   website. Required one-time setup:
-     1. Go to https://console.firebase.google.com → Add project (free).
-     2. Build → Firestore Database → Create database (any region, "test
-        mode" is fine to start).
-     3. Project settings (gear icon) → General → "Your apps" → Add app → Web.
-        Copy the firebaseConfig object it gives you and paste it below,
-        replacing the placeholder values.
-     4. In Firestore → Rules, use:
-          rules_version = '2';
-          service cloud.firestore {
-            match /databases/{database}/documents {
-              match /ars_billing/{docId} { allow read, write: if true; }
-            }
-          }
-        (This keeps the open rule scoped to only this app's one document.)
-   Until real keys are filled in below, the app keeps working exactly as
-   before, saving only to this browser's localStorage.                 */
-const firebaseConfig = {
-  apiKey: "YOUR_API_KEY",
-  authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-  projectId: "YOUR_PROJECT_ID",
-  storageBucket: "YOUR_PROJECT_ID.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID",
-  appId: "YOUR_APP_ID"
-};
-const CLOUD_SYNC_ENABLED = !!(firebaseConfig.apiKey && firebaseConfig.apiKey.indexOf('YOUR_') !== 0);
-const CLOUD_SYNC_KEYS = ['ars_catalog','ars_users','ars_inventory','ars_discount','ars_upi','ars_catnames','ars_sales','ars_login_history','ars_bill_counter'];
-/* A downloaded backup .html is a frozen offline snapshot (see hydrateFromBackupSeed
-   below) — it must never reconnect to the live cloud data and overwrite itself. */
-const IS_OFFLINE_BACKUP_COPY = !!document.getElementById('backup-seed-data');
-let cloudDocRef = null;
-if(CLOUD_SYNC_ENABLED && !IS_OFFLINE_BACKUP_COPY){
-  try{
-    firebase.initializeApp(firebaseConfig);
-    cloudDocRef = firebase.firestore().collection('ars_billing').doc('shared_data');
-  } catch(e){ console.error('Cloud sync init failed', e); }
-}
-const _cloudPushTimers = {};
-function queueCloudPush(key, val){
-  if(!cloudDocRef || CLOUD_SYNC_KEYS.indexOf(key) === -1) return;
-  let snapshotVal;
-  try{ snapshotVal = JSON.parse(JSON.stringify(val)); } catch(e){ return; }
-  clearTimeout(_cloudPushTimers[key]);
-  _cloudPushTimers[key] = setTimeout(() => {
-    cloudDocRef.set({ [key]: snapshotVal, updatedAt: firebase.firestore.FieldValue.serverTimestamp() }, {merge:true})
-      .catch(e => console.error('Cloud save failed for', key, e));
-  }, 500);
-}
-function showCloudUpdateBanner(){
-  if(document.getElementById('cloudSyncBanner')) return;
-  const bar = document.createElement('div');
-  bar.id = 'cloudSyncBanner';
-  bar.style.cssText = 'position:fixed; left:0; right:0; bottom:0; z-index:99999; background:var(--maroon); color:#fff8e6; padding:10px 14px; font-size:13px; font-weight:700; display:flex; align-items:center; justify-content:space-between; gap:10px; box-shadow:0 -2px 10px rgba(0,0,0,0.25);';
-  bar.innerHTML = '<span>&#9729; New data synced from another device.</span><button style="background:var(--gold); color:var(--maroon-dark); border:none; border-radius:6px; padding:6px 12px; font-weight:800;" onclick="location.reload()">Refresh</button>';
-  document.body.appendChild(bar);
-}
-/* One-time pull of the latest cloud data on open, and a live listener that
-   flags (without disrupting an in-progress bill) whenever another device
-   saves newer data, so this device can pick it up with one tap. */
-(function initCloudSync(){
-  if(!cloudDocRef) return;
-  cloudDocRef.get().then(snap => {
-    if(!snap.exists) return;
-    const data = snap.data();
-    let changed = false;
-    CLOUD_SYNC_KEYS.forEach(k => {
-      if(data[k] !== undefined){
-        const newStr = JSON.stringify(data[k]);
-        if(localStorage.getItem(k) !== newStr){ localStorage.setItem(k, newStr); changed = true; }
-      }
-    });
-    if(changed && !sessionStorage.getItem('ars_cloud_hydrated')){
-      sessionStorage.setItem('ars_cloud_hydrated', '1');
-      location.reload();
-    }
-  }).catch(e => console.error('Cloud fetch failed', e));
-  cloudDocRef.onSnapshot(snap => {
-    if(!snap.exists || snap.metadata.hasPendingWrites) return;
-    const data = snap.data();
-    const differs = CLOUD_SYNC_KEYS.some(k => data[k] !== undefined && JSON.stringify(data[k]) !== localStorage.getItem(k));
-    if(differs) showCloudUpdateBanner();
-  }, e => console.error('Cloud sync listener error', e));
-})();
-
 /* ---------------- storage helpers ---------------- */
 function loadJSON(key, fallback){ try { const v = JSON.parse(localStorage.getItem(key)); return (v===null||v===undefined) ? fallback : v; } catch(e){ return fallback; } }
-function saveJSON(key, val){ try { localStorage.setItem(key, JSON.stringify(val)); } catch(e){} queueCloudPush(key, val); }
+function saveJSON(key, val){ try { localStorage.setItem(key, JSON.stringify(val)); } catch(e){} }
 
 /* If this file IS a downloaded backup (it carries an embedded #backup-seed-data block),
    pre-fill localStorage from it the very first time it's opened — before anything else
@@ -2014,9 +1925,7 @@ function plPageHTML(plan){
 async function generatePriceListPDF(){
   await Promise.all([ensureJsPDF(), ensureHtml2Canvas()]);
 
-  const groups = buildPriceListGroups();
-  const plan = planSinglePagePriceList(groups);
-  const html = plPageHTML(plan);
+  const html = buildPriceListTableHTML();
 
   const host = document.createElement('div');
   host.className = 'pl-host';
@@ -2028,21 +1937,174 @@ async function generatePriceListPDF(){
 
   try{
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: 'portrait', unit: 'pt', format: 'a4' });
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
     const pdfW = doc.internal.pageSize.getWidth();
     const pdfH = doc.internal.pageSize.getHeight();
+    const margin = 8;
+    const contentW = pdfW - (2 * margin);
 
     const elW = pageEl.getBoundingClientRect().width || pageEl.offsetWidth;
     const canvas = await window.html2canvas(pageEl, {
-      scale: 2, backgroundColor: '#fffdf7', useCORS: true,
+      scale: 2, backgroundColor: '#fff', useCORS: true,
       width: elW, windowWidth: elW
     });
     const imgData = canvas.toDataURL('image/jpeg', 0.95);
-    doc.addImage(imgData, 'JPEG', 0, 0, pdfW, pdfH);
+    const totalHeightMm = (canvas.height / canvas.width) * contentW;
+    
+    if(totalHeightMm <= pdfH - (2 * margin)){
+      doc.addImage(imgData, 'JPEG', margin, margin, contentW, totalHeightMm);
+    } else {
+      const imgHeight = pdfW * (canvas.height / canvas.width);
+      let y = 0, page = 0;
+      while(y < imgHeight){
+        if(page > 0) doc.addPage();
+        doc.addImage(imgData, 'JPEG', 0, -y, pdfW, imgHeight);
+        y += pdfH;
+        page++;
+        if(page > 50) break;
+      }
+    }
     return doc;
   } finally {
     host.remove();
   }
+}
+
+function buildPriceListTableHTML(){
+  const items = [
+    {ta:'குருவி', en:'Kuruvi Bomb', price:'₹12'},
+    {ta:'லட்சுமி', en:'Lakshmi Bomb', price:'₹25'},
+    {ta:'தோல் லட்சுமி', en:'Gold Lakshmi Bomb', price:'₹40'},
+    {ta:'தோல் விநாயகர்', en:'Gold Vinayagar Bomb', price:'₹50'},
+    {ta:'ஹனுமான்', en:'Hanuman Bomb', price:'₹60'},
+    {ta:'கம்சன்', en:'Kamsan Bomb', price:'₹80'},
+    {ta:'பெரிய புச்சட்டி', en:'Flower Pot Big', price:'₹80'},
+    {ta:'ஸ்பெஷல் புச்சட்டி', en:'Flower Pot Special', price:'₹120'},
+    {ta:'அசோகா புச்சட்டி', en:'Flower Pot Ashoka', price:'₹180'},
+    {ta:'கலர் புச்சட்டி', en:'Flower Pot Colour', price:'₹300'},
+    {ta:'பெரிய சக்கரம்', en:'Chakkar Big', price:'₹60'},
+    {ta:'ஸ்பெஷல் சக்கரம்', en:'Chakkar Special', price:'₹120'},
+    {ta:'டிலக்ஸ் சக்கரம்', en:'Chakkar Deluxe', price:'₹180'},
+    {ta:'கம்பி சக்கரம்', en:'Wire Chakkar', price:'₹250'},
+    {ta:'விசிலிங் ராக்கெட்', en:'Whistling Rocket', price:'₹250'},
+    {ta:'பென்சில் ஆயுதம்', en:'Pencil Cracker', price:'₹45'},
+    {ta:'சாட்டை ஆயுதம்', en:'Whip Cracker', price:'₹45'},
+    {ta:'பெரிய சாட்டை', en:'Whip Cracker 4"', price:'₹120'},
+    {ta:'சிவப்பு பிரிஜிலி', en:'Red Brijili', price:'₹45'},
+    {ta:'வெள்ளி பிரிஜிலி', en:'Striped Brijili', price:'₹45'},
+    {ta:'28 சோரசா', en:'Sorsa Garland 28', price:'₹20'},
+    {ta:'28 ஜெயிண்ட்', en:'Joint Garland 28', price:'₹30'},
+    {ta:'56 ஜெயிண்ட்', en:'Joint Garland 56', price:'₹60'},
+    {ta:'50 மாளர்கள்', en:'Malar Garland 50', price:'₹135'},
+    {ta:'100 மேகா மாளர்', en:'Mega Malar 100', price:'₹270'},
+    {ta:'100 வாலா', en:'Vala 100', price:'₹60'},
+    {ta:'1000 வாலா', en:'Vala 1000', price:'₹300'},
+    {ta:'2000 வாலா', en:'Vala 2000', price:'₹700'},
+    {ta:'5000 வாலா', en:'Vala 5000', price:'₹1200'},
+    {ta:'10000 வாலா', en:'Vala 10000', price:'₹2400'},
+    {ta:'அக்னி பாம்', en:'Agni Bomb', price:'₹250'},
+    {ta:'சிட்டு புட்டு', en:'Sittu Buttu', price:'₹50'},
+    {ta:'சிரன் & மினி', en:'Siren Mini Siren', price:'₹225'},
+    {ta:'டான்சிங் பட்டர்ஃபிளை', en:'Dancing Butterfly', price:'₹150'},
+    {ta:'பம்பரம்', en:'Pambaram Spin', price:'₹180'},
+    {ta:'த்ரில் கட்டர்', en:'Thrill Cutter', price:'₹150'},
+    {ta:'பெண்டா 5-இன்-1', en:'Penta 5-in-1', price:'₹240'},
+    {ta:'2" பைப்', en:'Pipe 2"', price:'₹150'},
+    {ta:'2" பைப் 3pc', en:'Pipe 2" 3pc', price:'₹400'},
+    {ta:'3½" பைப்', en:'Pipe 3½"', price:'₹330'},
+    {ta:'4½" பைப்', en:'Pipe 4½"', price:'₹420'},
+    {ta:'7" ஷாட்', en:'Shot 7"', price:'₹120'},
+    {ta:'3" தோல் பாம்', en:'Gold Bomb 3"', price:'₹35'},
+    {ta:'வெள்ளி பாம்', en:'Silver Bomb', price:'₹45'},
+    {ta:'வைரம் பாம்', en:'Diamond Bomb', price:'₹55'},
+    {ta:'ரூபி பாம்', en:'Ruby Bomb', price:'₹65'},
+    {ta:'பச்சை பாம்', en:'Emerald Bomb', price:'₹75'},
+    {ta:'நீல் பாம்', en:'Sapphire Bomb', price:'₹85'},
+    {ta:'முத்து பாம்', en:'Pearl Bomb', price:'₹95'},
+    {ta:'கிரிஸ்டல் பாம்', en:'Crystal Bomb', price:'₹105'},
+    {ta:'சூப்பர் பாம்', en:'Super Bomb', price:'₹115'},
+    {ta:'மேஜிக் பாம்', en:'Magic Bomb', price:'₹125'},
+    {ta:'பவர் பாம்', en:'Power Bomb', price:'₹135'},
+    {ta:'அல்ட்ரா பாம்', en:'Ultra Bomb', price:'₹145'},
+    {ta:'ஃபிளாஷ் பாம்', en:'Flash Bomb', price:'₹155'},
+    {ta:'தண்டர் பாம்', en:'Thunder Bomb', price:'₹165'},
+    {ta:'ஸ்பார்க் பாம்', en:'Spark Bomb', price:'₹175'},
+    {ta:'ஃபயர் பாம்', en:'Fire Bomb', price:'₹185'},
+    {ta:'ஸ்டார் பாம்', en:'Star Bomb', price:'₹195'},
+    {ta:'கலாக்ஸி பாம்', en:'Galaxy Bomb', price:'₹205'},
+    {ta:'காஸ்மிக் பாம்', en:'Cosmic Bomb', price:'₹215'},
+    {ta:'நோவா பாம்', en:'Nova Bomb', price:'₹225'},
+    {ta:'சூப்பர்நோவா பாம்', en:'Supernova Bomb', price:'₹235'},
+    {ta:'பிளாஸ்மா பாம்', en:'Plasma Bomb', price:'₹245'},
+    {ta:'எனர்ஜி பாம்', en:'Energy Bomb', price:'₹255'},
+    {ta:'பல்ஸ் பாம்', en:'Pulse Bomb', price:'₹265'},
+    {ta:'வேவ் பாம்', en:'Wave Bomb', price:'₹275'},
+    {ta:'சர்ஜ் பாம்', en:'Surge Bomb', price:'₹285'},
+    {ta:'பர்ஸ்ட் பாம்', en:'Burst Bomb', price:'₹295'},
+    {ta:'ப்ளாஸ்ட் பாம்', en:'Blast Bomb', price:'₹305'},
+    {ta:'பூம் பாம்', en:'Boom Bomb', price:'₹315'},
+    {ta:'பாங் பாம்', en:'Bang Bomb', price:'₹325'},
+    {ta:'பாப் பாம்', en:'Pop Bomb', price:'₹335'},
+    {ta:'கிராக் பாம்', en:'Crack Bomb', price:'₹345'},
+    {ta:'ஸ்னாப் பாம்', en:'Snap Bomb', price:'₹355'},
+    {ta:'கிளிக் பாம்', en:'Click Bomb', price:'₹365'},
+    {ta:'பிங் பாம்', en:'Ping Bomb', price:'₹375'},
+    {ta:'பாங் பாம்', en:'Pong Bomb', price:'₹385'},
+    {ta:'சிங் பாம்', en:'Zing Bomb', price:'₹395'},
+    {ta:'சாப் பாம்', en:'Zap Bomb', price:'₹405'},
+    {ta:'விஸ் பாம்', en:'Whiz Bomb', price:'₹415'},
+    {ta:'பஸ் பாம்', en:'Buzz Bomb', price:'₹425'},
+    {ta:'ஹிஸ் பாம்', en:'Hiss Bomb', price:'₹435'},
+    {ta:'ஃபிஸ் பாம்', en:'Fizz Bomb', price:'₹445'},
+    {ta:'சிஸில் பாம்', en:'Sizzle Bomb', price:'₹455'},
+    {ta:'பாப் ஃபிளவர்', en:'Pop Flower', price:'₹465'},
+    {ta:'ரெயின்போ ஃபிளவர்', en:'Rainbow Flower', price:'₹475'},
+    {ta:'கலர் ஸ்ப்ரே', en:'Color Spray', price:'₹485'},
+    {ta:'தோல் ஸ்ப்ரே', en:'Gold Spray', price:'₹495'},
+    {ta:'வெள்ளி ஸ்ப்ரே', en:'Silver Spray', price:'₹505'},
+  ];
+
+  const itemsPerPage = 45;
+  const pages = [];
+  for(let i = 0; i < items.length; i += itemsPerPage) {
+    pages.push(items.slice(i, i + itemsPerPage));
+  }
+
+  return pages.map((pageItems, pageIdx) => `
+    <div style="width:210mm; height:297mm; padding:5mm; background:#fff; font-family:Arial; display:flex; flex-direction:column; page-break-after:always;">
+      ${pageIdx === 0 ? `
+        <div style="background:#7a1414; color:white; padding:3mm; text-align:center; margin-bottom:3mm; border-radius:1px;">
+          <div style="font-size:13px; font-weight:bold;">A.R.S CRACKERS SHOP</div>
+          <div style="font-size:7px;">8760209888 | Thanneerpandhal</div>
+        </div>
+      ` : `<div style="height:3mm; margin-bottom:3mm;"></div>`}
+      
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:3mm; flex:1;">
+        <div style="border:0.5px solid #ddd; padding:2mm; overflow-y:auto;">
+          ${pageItems.slice(0, Math.ceil(pageItems.length/2)).map(item => `
+            <div style="padding:2mm 1.5mm; border-bottom:0.5px solid #eee;">
+              <div style="font-weight:bold; font-size:9px; color:#7a1414; line-height:1.1;">${item.ta}</div>
+              <div style="font-size:6px; color:#666; line-height:1;">${item.en}</div>
+              <div style="text-align:right; font-weight:bold; color:#c9651a; font-size:8px; margin-top:0.5mm;">${item.price}</div>
+            </div>
+          `).join('')}
+        </div>
+        <div style="border:0.5px solid #ddd; padding:2mm; overflow-y:auto;">
+          ${pageItems.slice(Math.ceil(pageItems.length/2)).map(item => `
+            <div style="padding:2mm 1.5mm; border-bottom:0.5px solid #eee;">
+              <div style="font-weight:bold; font-size:9px; color:#7a1414; line-height:1.1;">${item.ta}</div>
+              <div style="font-size:6px; color:#666; line-height:1;">${item.en}</div>
+              <div style="text-align:right; font-weight:bold; color:#c9651a; font-size:8px; margin-top:0.5mm;">${item.price}</div>
+            </div>
+          `).join('')}
+        </div>
+      </div>
+
+      <div style="text-align:center; font-size:6px; margin-top:2mm; color:#999; border-top:0.5px solid #ddd; padding-top:1mm;">
+        Page ${pageIdx+1} of ${pages.length}
+      </div>
+    </div>
+  `).join('');
 }
 
 async function sharePriceListPDF(triggerEl){
@@ -2865,15 +2927,7 @@ function renderAdmin(){
     updateUpiPreview();
 
   } else if(adminTab === 'backup'){
-    main.innerHTML = `<div class="backup-card" style="${CLOUD_SYNC_ENABLED ? 'background:#e2f6e8; border-color:#1e7a3c;' : 'background:#ffe2e2; border-color:#ffb3a8;'}">
-        <div class="section-title" style="margin-top:0; color:${CLOUD_SYNC_ENABLED ? 'var(--green)' : 'var(--danger)'};">${CLOUD_SYNC_ENABLED ? '☁️ Cloud Sync: ON' : '☁️ Cloud Sync: NOT SET UP'}</div>
-        <div class="backup-note" style="${CLOUD_SYNC_ENABLED ? 'background:#f0fff0; border-color:#1e7a3c; color:#1e7a3c;' : 'background:#fff0f0; border-color:#ffb3a8; color:var(--danger);'}">
-          ${CLOUD_SYNC_ENABLED
-            ? 'Every sale, price and setting change saves automatically to the cloud and appears on every device that opens this website.'
-            : 'Data is only saved on this one device/browser right now. To auto-save across every phone and device, add a free Firebase config — see the comment at the top of the &lt;script&gt; section in this file (search "CLOUD SYNC").'}
-        </div>
-      </div>
-      <div class="backup-card" style="background:#e2f6e8; border-color:#1e7a3c;">
+    main.innerHTML = `<div class="backup-card" style="background:#e2f6e8; border-color:#1e7a3c;">
         <div class="section-title" style="margin-top:0; color:var(--green);">📊 PDF REPORTS (Bank / Loan Format)</div>
         <div class="backup-note" style="background:#f0fff0; border-color:#1e7a3c; color:#1e7a3c; margin-bottom:12px;">
           Professional A4 PDF reports suitable for bank loan applications, GST filing, and financial documentation.
